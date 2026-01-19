@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grademe - הגשת עבודות</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; direction: rtl; }
+    .card { background: white; max-width: 500px; margin: 0 auto; padding: 25px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #1a73e8; }
+    label { display: block; margin: 15px 0 5px; font-weight: 600; }
+    input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    .btn { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; margin-top: 25px; cursor: pointer; }
+    .btn:disabled { background: #ccc; }
+    #status { margin-top: 20px; text-align: center; font-weight: bold; padding: 10px; border-radius: 8px; }
+    .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid #1a73e8; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>הגשת עבודות</h1>
+  <form id="mainForm">
+    <label>שם מלא</label>
+    <input type="text" id="studentName" required>
+    
+    <label>תעודת זהות</label>
+    <input type="tel" id="studentId" maxlength="9" required>
+    
+    <label>כיתה</label>
+    <select id="className"><option>טוען רשימה...</option></select>
+    
+    <label>מורה</label>
+    <select id="teacherName"><option>טוען רשימה...</option></select>
+    
+    <label>מקצוע</label>
+    <select id="subjectName"><option>טוען רשימה...</option></select>
+    
+    <label>שם המשימה</label>
+    <input type="text" id="taskName" required>
+    
+    <label>בחירת קבצים</label>
+    <input type="file" id="files" multiple required>
+    
+    <button type="submit" class="btn" id="submitBtn">שלח עבודה</button>
+  </form>
+  <div class="loader" id="loader"></div>
+  <div id="status"></div>
+</div>
+
+<script>
+  const WEB_APP_URL = "PASTE_YOUR_URL_HERE";
+
+  // Load Lists on startup
+  window.onload = async () => {
+    try {
+      const resp = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getLists' })
+      });
+      const data = await resp.json();
+      fillDropdown('className', data.classes.map(c => c.name));
+      fillDropdown('teacherName', data.teachers.map(t => t.name));
+      fillDropdown('subjectName', data.subjects.map(s => s.name));
+    } catch (e) {
+      document.getElementById('status').innerText = "שגיאה בטעינת נתונים";
+    }
+  };
+
+  function fillDropdown(id, items) {
+    const el = document.getElementById(id);
+    el.innerHTML = '<option value="" disabled selected>בחר...</option>';
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item; opt.innerText = item;
+      el.appendChild(opt);
+    });
+  }
+
+  document.getElementById('mainForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const loader = document.getElementById('loader');
+    const status = document.getElementById('status');
+    
+    btn.disabled = true;
+    loader.style.display = 'block';
+    status.innerText = "מעלה קבצים...";
+
+    const fileInput = document.getElementById('files');
+    const files = await Promise.all(Array.from(fileInput.files).map(f => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          name: f.name,
+          mimeType: f.type,
+          base64: reader.result.split(',')[1]
+        });
+        reader.readAsDataURL(f);
+      });
+    }));
+
+    const payload = {
+      studentName: document.getElementById('studentName').value,
+      studentId: document.getElementById('studentId').value,
+      className: document.getElementById('className').value,
+      teacherName: document.getElementById('teacherName').value,
+      subjectName: document.getElementById('subjectName').value,
+      taskName: document.getElementById('taskName').value,
+      files: files
+    };
+
+    try {
+      const resp = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      if(result.ok) {
+        status.innerText = "ההגשה הצליחה!";
+        status.style.color = "green";
+        document.getElementById('mainForm').reset();
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      status.innerText = "שגיאה: " + err.message;
+      status.style.color = "red";
+    } finally {
+      btn.disabled = false;
+      loader.style.display = 'none';
+    }
+  };
+</script>
+</body>
+</html>
