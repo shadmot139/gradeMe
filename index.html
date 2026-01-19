@@ -5,15 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Grademe - הגשת עבודות</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; direction: rtl; }
-    .card { background: white; max-width: 500px; margin: 0 auto; padding: 25px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1 { text-align: center; color: #1a73e8; }
-    label { display: block; margin: 15px 0 5px; font-weight: 600; }
-    input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-    .btn { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; margin-top: 25px; cursor: pointer; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 15px; background: #f0f2f5; direction: rtl; }
+    .card { background: white; max-width: 450px; margin: 0 auto; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #1a73e8; font-size: 24px; margin-bottom: 10px; }
+    label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    
+    /* File List Styling */
+    #fileList { margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; display: none; }
+    .file-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+    .file-item:last-child { border-bottom: none; }
+    .remove-btn { color: #d93025; cursor: pointer; font-weight: bold; padding: 0 10px; font-size: 18px; }
+    
+    .btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; margin-top: 20px; cursor: pointer; }
     .btn:disabled { background: #ccc; }
-    #status { margin-top: 20px; text-align: center; font-weight: bold; padding: 10px; border-radius: 8px; }
-    .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid #1a73e8; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+    #status { margin-top: 15px; text-align: center; font-weight: bold; padding: 10px; border-radius: 8px; font-size: 14px; }
+    .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid #1a73e8; border-radius: 50%; width: 25px; height: 25px; animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
@@ -22,26 +29,30 @@
 <div class="card">
   <h1>הגשת עבודות</h1>
   <form id="mainForm">
-    <label>שם מלא</label>
-    <input type="text" id="studentName" required>
+    <label>שם מלא (עד 20 תווים)</label>
+    <input type="text" id="studentName" maxlength="20" required placeholder="ישראל ישראלי">
     
     <label>תעודת זהות</label>
-    <input type="tel" id="studentId" maxlength="9" required>
+    <input type="tel" id="studentId" maxlength="9" required placeholder="9 ספרות">
     
     <label>כיתה</label>
-    <select id="className"><option>טוען רשימה...</option></select>
+    <select id="className" required><option>טוען רשימה...</option></select>
     
     <label>מורה</label>
-    <select id="teacherName"><option>טוען רשימה...</option></select>
+    <select id="teacherName" required><option>טוען רשימה...</option></select>
     
     <label>מקצוע</label>
-    <select id="subjectName"><option>טוען רשימה...</option></select>
+    <select id="subjectName" required><option>טוען רשימה...</option></select>
     
-    <label>שם המשימה</label>
-    <input type="text" id="taskName" required>
+    <label>שם המשימה (עד 40 תווים)</label>
+    <input type="text" id="taskName" maxlength="40" required placeholder="לדוגמה: עבודת שורשים">
     
     <label>בחירת קבצים</label>
-    <input type="file" id="files" multiple required>
+    <input type="file" id="fileInput" multiple required>
+    
+    <div id="fileList">
+      <div id="fileItemsContainer"></div>
+    </div>
     
     <button type="submit" class="btn" id="submitBtn">שלח עבודה</button>
   </form>
@@ -50,15 +61,13 @@
 </div>
 
 <script>
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzxG0BAj1HIZeD22SRw0gr3pKMX6vihYnN333gjVP-iBz-NqPDrsXBYkSFQaWcJI0--/exec";
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzxG0BAj1HIZeD22SRw0gr3pKMX6vihYnN333gjVP-iBz-NqPDrsXBYkSFQaWcJI0--/exec"; // <--- UPDATE THIS
+  let selectedFiles = [];
 
-  // Load Lists on startup
+  // Load Lists
   window.onload = async () => {
     try {
-      const resp = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getLists' })
-      });
+      const resp = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'getLists' }) });
       const data = await resp.json();
       fillDropdown('className', data.classes.map(c => c.name));
       fillDropdown('teacherName', data.teachers.map(t => t.name));
@@ -78,18 +87,58 @@
     });
   }
 
+  // Handle File Selection
+  document.getElementById('fileInput').onchange = (e) => {
+    const newFiles = Array.from(e.target.files);
+    selectedFiles = [...selectedFiles, ...newFiles];
+    renderFileList();
+    e.target.value = ""; // Clear input so same file can be picked again
+  };
+
+  function renderFileList() {
+    const container = document.getElementById('fileItemsContainer');
+    const listDiv = document.getElementById('fileList');
+    container.innerHTML = "";
+    
+    if (selectedFiles.length === 0) {
+      listDiv.style.display = "none";
+      return;
+    }
+
+    listDiv.style.display = "block";
+    selectedFiles.forEach((file, index) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `
+        <span>📄 ${file.name}</span>
+        <span class="remove-btn" onclick="removeFile(${index})">×</span>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  window.removeFile = (index) => {
+    selectedFiles.splice(index, 1);
+    renderFileList();
+  };
+
+  // Form Submission
   document.getElementById('mainForm').onsubmit = async (e) => {
     e.preventDefault();
+    if (selectedFiles.length === 0) {
+        alert("נא לבחור לפחות קובץ אחד");
+        return;
+    }
+
     const btn = document.getElementById('submitBtn');
-    const loader = document.getElementById('loader');
     const status = document.getElementById('status');
+    const loader = document.getElementById('loader');
     
     btn.disabled = true;
     loader.style.display = 'block';
-    status.innerText = "מעלה קבצים...";
+    status.innerText = "מעבד קבצים...";
 
-    const fileInput = document.getElementById('files');
-    const files = await Promise.all(Array.from(fileInput.files).map(f => {
+    const fileData = await Promise.all(selectedFiles.map(f => {
       return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = () => resolve({
@@ -108,19 +157,18 @@
       teacherName: document.getElementById('teacherName').value,
       subjectName: document.getElementById('subjectName').value,
       taskName: document.getElementById('taskName').value,
-      files: files
+      files: fileData
     };
 
     try {
-      const resp = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+      const resp = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
       const result = await resp.json();
       if(result.ok) {
         status.innerText = "ההגשה הצליחה!";
         status.style.color = "green";
         document.getElementById('mainForm').reset();
+        selectedFiles = [];
+        renderFileList();
       } else {
         throw new Error(result.message);
       }
